@@ -20,7 +20,7 @@ class RiskLevelFilter(SimpleListFilter):
     parameter_name = 'risk_level'
 
     def lookups(self, request, model_admin):
-        return Customer.RISK_LEVEL_CHOICES
+        return Customer.RiskLevel.choices
 
     def queryset(self, request, queryset):
         if self.value():
@@ -34,7 +34,7 @@ class OnboardingStatusFilter(SimpleListFilter):
     parameter_name = 'onboarding_status'
 
     def lookups(self, request, model_admin):
-        return Customer.ONBOARDING_STATUS_CHOICES
+        return Customer.OnboardingStatus.choices
 
     def queryset(self, request, queryset):
         if self.value():
@@ -58,7 +58,7 @@ class CustomerAdmin(admin.ModelAdmin):
     
     # Configuração da lista principal
     list_display = (
-        'get_customer_name', 'customer_type', 'get_risk_badge', 
+        'full_name', 'customer_type', 'get_risk_badge',
         'get_onboarding_badge', 'country', 'created_at'
     )
     
@@ -70,8 +70,8 @@ class CustomerAdmin(admin.ModelAdmin):
     
     # Busca avançada
     search_fields = (
-        'first_name', 'last_name', 'company_name', 'email',
-        'phone', 'document_number', 'tax_id'
+        'full_name', 'legal_name', 'email',
+        'phone', 'document_number'
     )
     
     # Ordenação padrão
@@ -85,8 +85,7 @@ class CustomerAdmin(admin.ModelAdmin):
         ('Informações Básicas', {
             'fields': (
                 ('customer_type',),
-                ('first_name', 'last_name'),
-                ('company_name',),
+                ('full_name', 'legal_name'),
                 ('email', 'phone'),
             ),
             'classes': ('wide',),
@@ -94,7 +93,6 @@ class CustomerAdmin(admin.ModelAdmin):
         ('Documentação', {
             'fields': (
                 ('document_type', 'document_number'),
-                ('tax_id',),
             ),
             'classes': ('wide',)
         }),

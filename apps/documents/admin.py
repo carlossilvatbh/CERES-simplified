@@ -10,7 +10,7 @@ from django.db.models import Count
 from django.contrib.admin import SimpleListFilter
 from django.utils import timezone
 
-from .models import Document
+from .models import Document, DocumentType
 
 
 class DocumentStatusFilter(SimpleListFilter):
@@ -19,7 +19,7 @@ class DocumentStatusFilter(SimpleListFilter):
     parameter_name = 'status'
 
     def lookups(self, request, model_admin):
-        return Document.STATUS_CHOICES
+        return Document.Status.choices
 
     def queryset(self, request, queryset):
         if self.value():
@@ -33,7 +33,8 @@ class DocumentTypeFilter(SimpleListFilter):
     parameter_name = 'document_type'
 
     def lookups(self, request, model_admin):
-        return Document.DOCUMENT_TYPE_CHOICES
+        # Retorna as opções do modelo relacionado DocumentType
+        return [(dt.id, dt.name) for dt in DocumentType.objects.all()]
 
     def queryset(self, request, queryset):
         if self.value():
@@ -50,7 +51,7 @@ class DocumentAdmin(admin.ModelAdmin):
     
     # Configuração da lista principal
     list_display = (
-        'get_document_name', 'document_type', 'get_status_badge', 
+        'title', 'document_type', 'get_status_badge',
         'customer', 'get_file_info', 'created_at'
     )
     
@@ -61,8 +62,7 @@ class DocumentAdmin(admin.ModelAdmin):
     
     # Busca avançada
     search_fields = (
-        'name', 'description', 'customer__first_name', 'customer__last_name',
-        'customer__company_name'
+        'title', 'description', 'customer__full_name', 'customer__legal_name'
     )
     
     # Ordenação padrão
@@ -75,7 +75,7 @@ class DocumentAdmin(admin.ModelAdmin):
     fieldsets = (
         ('Informações do Documento', {
             'fields': (
-                ('name', 'document_type'),
+                ('title', 'document_type'),
                 ('customer', 'status'),
                 'description',
             ),
@@ -167,4 +167,22 @@ class DocumentAdmin(admin.ModelAdmin):
         updated = queryset.update(status='PENDING_REVIEW')
         self.message_user(request, f'{updated} documento(s) marcado(s) para revisão.')
     mark_for_review.short_description = "Marcar para revisão"
+
+
+@admin.register(DocumentType)
+class DocumentTypeAdmin(admin.ModelAdmin):
+    """Admin for document types"""
+    list_display = ('name', 'category', 'is_required', 'is_active')
+    list_filter = ('category', 'is_required', 'is_active')
+    search_fields = ('name', 'description')
+    ordering = ('category', 'name')
+    
+    fieldsets = (
+        ('Basic Information', {
+            'fields': ('name', 'description', 'category')
+        }),
+        ('Configuration', {
+            'fields': ('is_required', 'is_active', 'allowed_extensions')
+        }),
+    )
 

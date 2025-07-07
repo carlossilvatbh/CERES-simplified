@@ -70,7 +70,7 @@ class Command(BaseCommand):
                     'source_url': 'https://www.treasury.gov/ofac/downloads/sdnlist.txt',
                     'is_active': True,
                     'last_updated': timezone.now(),
-                    'total_entries': 0
+                    'list_type': 'OFAC'
                 }
             )
             if created:
