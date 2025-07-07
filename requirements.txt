@@ -1,0 +1,32 @@
+# CERES Simplified - Minimal Dependencies
+# Core Django dependencies only
+
+# Django Core
+Django==5.1.4
+djangorestframework==3.15.2
+
+# Database
+psycopg2-binary==2.9.9
+
+# Configuration Management
+python-decouple==3.8
+
+# Basic Image Processing
+Pillow==10.4.0
+
+# HTTP Requests
+requests==2.32.3
+
+# Data Validation
+validators==0.34.0
+
+# Basic Security
+bcrypt==4.2.0
+
+# Development tools (optional)
+django-debug-toolbar==4.4.6
+django-extensions==3.2.3
+
+# Basic utilities
+python-dateutil==2.8.2
+
