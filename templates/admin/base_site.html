@@ -1,0 +1,146 @@
+{% extends "admin/base.html" %}
+{% load static %}
+
+{% block title %}{% if subtitle %}{{ subtitle }} | {% endif %}{{ title }} | CERES Admin{% endblock %}
+
+{% block branding %}
+<h1 id="site-name">
+    <a href="{% url 'admin:index' %}">
+        CERES Simplified
+        <span style="font-size: 0.7em; font-weight: 400; color: rgba(255,255,255,0.8); margin-left: 0.5rem;">
+            Compliance & Risk Management
+        </span>
+    </a>
+</h1>
+{% endblock %}
+
+{% block nav-global %}{% endblock %}
+
+{% block extrahead %}
+{{ block.super }}
+<link rel="stylesheet" type="text/css" href="{% static 'admin/css/ceres_admin.css' %}">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<style>
+    /* Additional inline styles for immediate loading */
+    body {
+        font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+    }
+    
+    /* Custom favicon */
+    link[rel="icon"] {
+        content: url("data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🛡️</text></svg>");
+    }
+</style>
+{% endblock %}
+
+{% block footer %}
+<div id="footer" style="
+    background: linear-gradient(135deg, #1e40af 0%, #1e3a8a 100%);
+    color: rgba(255,255,255,0.9);
+    padding: 1rem 2rem;
+    margin-top: 3rem;
+    text-align: center;
+    font-size: 0.9rem;
+">
+    <div style="display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 1rem;">
+        <div>
+            <strong>CERES Simplified</strong> - Compliance & Risk Management System
+        </div>
+        <div style="display: flex; gap: 2rem; align-items: center;">
+            <span>Version 1.0.0</span>
+            <span>|</span>
+            <span>{{ user.get_full_name|default:user.username }}</span>
+            <span>|</span>
+            <span id="current-time"></span>
+        </div>
+    </div>
+</div>
+
+<script>
+    // Update current time
+    function updateTime() {
+        const now = new Date();
+        const timeString = now.toLocaleString('en-US', {
+            year: 'numeric',
+            month: 'short',
+            day: 'numeric',
+            hour: '2-digit',
+            minute: '2-digit',
+            second: '2-digit'
+        });
+        document.getElementById('current-time').textContent = timeString;
+    }
+    
+    updateTime();
+    setInterval(updateTime, 1000);
+    
+    // Add loading states to forms
+    document.addEventListener('DOMContentLoaded', function() {
+        const forms = document.querySelectorAll('form');
+        forms.forEach(form => {
+            form.addEventListener('submit', function() {
+                const submitButtons = form.querySelectorAll('input[type="submit"], button[type="submit"]');
+                submitButtons.forEach(button => {
+                    button.disabled = true;
+                    button.classList.add('loading');
+                    if (button.value) {
+                        button.dataset.originalValue = button.value;
+                        button.value = 'Processing...';
+                    }
+                });
+            });
+        });
+        
+        // Add hover effects to table rows
+        const tableRows = document.querySelectorAll('.results tbody tr');
+        tableRows.forEach(row => {
+            row.addEventListener('mouseenter', function() {
+                this.style.transform = 'scale(1.01)';
+                this.style.transition = 'all 0.2s ease';
+            });
+            
+            row.addEventListener('mouseleave', function() {
+                this.style.transform = 'scale(1)';
+            });
+        });
+        
+        // Add status badges
+        const statusCells = document.querySelectorAll('td');
+        statusCells.forEach(cell => {
+            const text = cell.textContent.trim().toLowerCase();
+            if (['approved', 'active', 'clear', 'pass'].includes(text)) {
+                cell.innerHTML = `<span class="status-badge status-approved">${cell.textContent}</span>`;
+            } else if (['pending', 'review', 'potential'].includes(text)) {
+                cell.innerHTML = `<span class="status-badge status-pending">${cell.textContent}</span>`;
+            } else if (['rejected', 'suspended', 'hit', 'fail'].includes(text)) {
+                cell.innerHTML = `<span class="status-badge status-rejected">${cell.textContent}</span>`;
+            } else if (text.includes('high') && text.includes('risk')) {
+                cell.innerHTML = `<span class="status-badge status-high-risk">${cell.textContent}</span>`;
+            } else if (text.includes('medium') && text.includes('risk')) {
+                cell.innerHTML = `<span class="status-badge status-medium-risk">${cell.textContent}</span>`;
+            } else if (text.includes('low') && text.includes('risk')) {
+                cell.innerHTML = `<span class="status-badge status-low-risk">${cell.textContent}</span>`;
+            }
+        });
+        
+        // Add risk indicators
+        const riskCells = document.querySelectorAll('td');
+        riskCells.forEach(cell => {
+            const text = cell.textContent.trim().toLowerCase();
+            if (text === 'low') {
+                cell.innerHTML = `<span class="risk-indicator risk-low">Low Risk</span>`;
+            } else if (text === 'medium') {
+                cell.innerHTML = `<span class="risk-indicator risk-medium">Medium Risk</span>`;
+            } else if (text === 'high') {
+                cell.innerHTML = `<span class="risk-indicator risk-high">High Risk</span>`;
+            } else if (text === 'critical') {
+                cell.innerHTML = `<span class="risk-indicator risk-critical">Critical Risk</span>`;
+            }
+        });
+    });
+</script>
+{% endblock %}
+
