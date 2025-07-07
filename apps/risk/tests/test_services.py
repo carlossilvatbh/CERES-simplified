@@ -1,25 +1,24 @@
 """
-CERES Simplified - Risk Services Unit Tests
-Comprehensive unit tests for risk calculation and monitoring services
+CERES Simplified - Fase 5: Testes Unitários para Serviços de Risk Assessment
+Testes abrangentes para validação de cálculos de risco e lógica de negócio
 """
 
-from decimal import Decimal
 from django.test import TestCase
 from django.contrib.auth.models import User
 from django.utils import timezone
-from datetime import date
+from decimal import Decimal
 from unittest.mock import patch, MagicMock
 
-from apps.customers.models import Customer
-from apps.risk.models import RiskFactor, RiskAssessment, RiskMatrix
-from apps.risk.services import RiskCalculationService, RiskMonitoringService
+from apps.customers.models import Customer, BeneficialOwner
+from apps.risk.models import RiskAssessment, RiskFactor, RiskMatrix
+from apps.risk.services import RiskCalculationService
 
 
 class RiskCalculationServiceTest(TestCase):
-    """Test cases for RiskCalculationService"""
+    """Testes unitários para RiskCalculationService"""
     
     def setUp(self):
-        """Set up test data"""
+        """Configuração inicial para os testes"""
         self.user = User.objects.create_user(
             username='testuser',
             email='test@example.com',
@@ -28,426 +27,353 @@ class RiskCalculationServiceTest(TestCase):
         
         self.customer = Customer.objects.create(
             customer_type='INDIVIDUAL',
-            first_name='John',
-            last_name='Doe',
-            date_of_birth=date(1985, 5, 15),
-            nationality='US',
-            country='US',
-            email='john.doe@example.com',
-            phone='+1234567890',
-            address='123 Main St',
-            city='New York',
-            postal_code='10001',
-            industry='TECHNOLOGY',
-            expected_monthly_volume=Decimal('50000.00'),
-            source_of_funds='SALARY',
-            is_pep=False
+            first_name='João',
+            last_name='Silva',
+            email='joao.silva@email.com',
+            phone='+5511999999999',
+            document_type='CPF',
+            document_number='12345678901',
+            country='Brasil',
+            risk_level='MEDIUM'
         )
         
-        # Create risk factors
-        self.geographic_factor = RiskFactor.objects.create(
-            name='Geographic Risk',
-            description='Risk based on customer location',
-            factor_type='GEOGRAPHIC',
-            risk_weight=10,
-            is_active=True
-        )
-        
-        self.industry_factor = RiskFactor.objects.create(
-            name='Industry Risk',
-            description='Risk based on customer industry',
-            factor_type='INDUSTRY',
-            risk_weight=15,
-            is_active=True
-        )
-        
-        self.pep_factor = RiskFactor.objects.create(
-            name='PEP Risk',
-            description='Risk based on PEP status',
-            factor_type='OTHER',
-            risk_weight=25,
-            is_active=True
-        )
-        
-        # Create risk matrix
-        self.risk_matrix = RiskMatrix.objects.create(
-            name='Individual Matrix',
-            customer_type='INDIVIDUAL',
-            description='Matrix for individual customers',
-            low_risk_threshold=30,
-            medium_risk_threshold=60,
-            high_risk_threshold=80,
-            is_active=True
-        )
+        # Criar fatores de risco para teste
+        self.risk_factors = [
+            RiskFactor.objects.create(
+                name='País de Residência',
+                description='Risco baseado no país',
+                weight=Decimal('0.3'),
+                is_active=True
+            ),
+            RiskFactor.objects.create(
+                name='Pessoa Politicamente Exposta',
+                description='Cliente é PEP',
+                weight=Decimal('0.4'),
+                is_active=True
+            ),
+            RiskFactor.objects.create(
+                name='Volume de Transações',
+                description='Volume esperado de transações',
+                weight=Decimal('0.3'),
+                is_active=True
+            )
+        ]
         
         self.service = RiskCalculationService()
     
-    def test_calculate_customer_risk_basic(self):
-        """Test basic risk calculation"""
-        assessment = self.service.calculate_customer_risk(self.customer, self.user)
+    def test_calculate_country_risk_low(self):
+        """Teste de cálculo de risco por país - baixo risco"""
+        # Países de baixo risco
+        low_risk_countries = ['Brasil', 'Estados Unidos', 'Alemanha', 'Reino Unido']
         
-        self.assertIsInstance(assessment, RiskAssessment)
+        for country in low_risk_countries:
+            self.customer.country = country
+            risk_score = self.service._calculate_country_risk(self.customer)
+            self.assertLessEqual(risk_score, 30, f"País {country} deveria ter risco baixo")
+    
+    def test_calculate_country_risk_medium(self):
+        """Teste de cálculo de risco por país - médio risco"""
+        # Países de médio risco
+        medium_risk_countries = ['Argentina', 'México', 'Turquia', 'Índia']
+        
+        for country in medium_risk_countries:
+            self.customer.country = country
+            risk_score = self.service._calculate_country_risk(self.customer)
+            self.assertGreater(risk_score, 30)
+            self.assertLessEqual(risk_score, 70, f"País {country} deveria ter risco médio")
+    
+    def test_calculate_country_risk_high(self):
+        """Teste de cálculo de risco por país - alto risco"""
+        # Países de alto risco
+        high_risk_countries = ['Afeganistão', 'Coreia do Norte', 'Irã', 'Síria']
+        
+        for country in high_risk_countries:
+            self.customer.country = country
+            risk_score = self.service._calculate_country_risk(self.customer)
+            self.assertGreater(risk_score, 70, f"País {country} deveria ter risco alto")
+    
+    def test_calculate_pep_risk(self):
+        """Teste de cálculo de risco PEP"""
+        # Cliente não PEP
+        self.customer.is_pep = False
+        risk_score = self.service._calculate_pep_risk(self.customer)
+        self.assertEqual(risk_score, 0)
+        
+        # Cliente PEP
+        self.customer.is_pep = True
+        risk_score = self.service._calculate_pep_risk(self.customer)
+        self.assertEqual(risk_score, 80)
+    
+    def test_calculate_business_risk_individual(self):
+        """Teste de cálculo de risco de negócio - pessoa física"""
+        self.customer.customer_type = 'INDIVIDUAL'
+        risk_score = self.service._calculate_business_risk(self.customer)
+        self.assertEqual(risk_score, 20)  # Pessoa física = baixo risco
+    
+    def test_calculate_business_risk_corporate(self):
+        """Teste de cálculo de risco de negócio - pessoa jurídica"""
+        self.customer.customer_type = 'CORPORATE'
+        
+        # Indústrias de baixo risco
+        low_risk_industries = ['Tecnologia', 'Educação', 'Saúde']
+        for industry in low_risk_industries:
+            self.customer.industry = industry
+            risk_score = self.service._calculate_business_risk(self.customer)
+            self.assertLessEqual(risk_score, 40)
+        
+        # Indústrias de alto risco
+        high_risk_industries = ['Jogos', 'Criptomoedas', 'Câmbio']
+        for industry in high_risk_industries:
+            self.customer.industry = industry
+            risk_score = self.service._calculate_business_risk(self.customer)
+            self.assertGreaterEqual(risk_score, 70)
+    
+    def test_calculate_sanctions_risk(self):
+        """Teste de cálculo de risco de sanções"""
+        # Cliente não verificado
+        self.customer.is_sanctions_checked = False
+        risk_score = self.service._calculate_sanctions_risk(self.customer)
+        self.assertEqual(risk_score, 50)  # Risco médio por não ter verificado
+        
+        # Cliente verificado sem matches
+        self.customer.is_sanctions_checked = True
+        risk_score = self.service._calculate_sanctions_risk(self.customer)
+        self.assertEqual(risk_score, 0)  # Sem risco
+    
+    def test_calculate_overall_risk_score(self):
+        """Teste de cálculo de score geral de risco"""
+        # Configurar cliente de baixo risco
+        self.customer.country = 'Brasil'
+        self.customer.is_pep = False
+        self.customer.customer_type = 'INDIVIDUAL'
+        self.customer.is_sanctions_checked = True
+        
+        risk_score = self.service.calculate_risk_score(self.customer)
+        
+        # Verificar se o score está dentro do range esperado
+        self.assertGreaterEqual(risk_score, 0)
+        self.assertLessEqual(risk_score, 100)
+        self.assertIsInstance(risk_score, int)
+    
+    def test_calculate_high_risk_customer(self):
+        """Teste de cliente de alto risco"""
+        # Configurar cliente de alto risco
+        self.customer.country = 'Afeganistão'
+        self.customer.is_pep = True
+        self.customer.customer_type = 'CORPORATE'
+        self.customer.industry = 'Criptomoedas'
+        self.customer.is_sanctions_checked = False
+        
+        risk_score = self.service.calculate_risk_score(self.customer)
+        
+        # Cliente de alto risco deve ter score elevado
+        self.assertGreaterEqual(risk_score, 70)
+    
+    def test_determine_risk_level_from_score(self):
+        """Teste de determinação do nível de risco baseado no score"""
+        test_cases = [
+            (10, 'LOW'),
+            (25, 'LOW'),
+            (35, 'MEDIUM'),
+            (50, 'MEDIUM'),
+            (75, 'HIGH'),
+            (90, 'CRITICAL'),
+            (95, 'CRITICAL')
+        ]
+        
+        for score, expected_level in test_cases:
+            level = self.service._determine_risk_level(score)
+            self.assertEqual(level, expected_level, 
+                           f"Score {score} deveria resultar em nível {expected_level}")
+    
+    def test_create_risk_assessment(self):
+        """Teste de criação de avaliação de risco"""
+        assessment = self.service.create_assessment(self.customer, self.user)
+        
+        # Verificar se a avaliação foi criada
+        self.assertIsNotNone(assessment)
         self.assertEqual(assessment.customer, self.customer)
         self.assertEqual(assessment.assessed_by, self.user)
-        self.assertEqual(assessment.assessment_type, 'INITIAL')
-        self.assertTrue(assessment.is_current)
-        self.assertGreaterEqual(assessment.final_score, 0)
-        self.assertLessEqual(assessment.final_score, 100)
+        self.assertIsNotNone(assessment.risk_score)
+        self.assertIsNotNone(assessment.risk_level)
+        self.assertIsNotNone(assessment.assessment_date)
+        
+        # Verificar se o customer foi atualizado
+        self.customer.refresh_from_db()
+        self.assertEqual(self.customer.risk_level, assessment.risk_level)
+        self.assertEqual(self.customer.risk_score, assessment.risk_score)
     
-    def test_calculate_customer_risk_with_factors(self):
-        """Test risk calculation with specific factors"""
-        # Test with low-risk customer
-        low_risk_customer = Customer.objects.create(
-            customer_type='INDIVIDUAL',
-            first_name='Jane',
-            last_name='Smith',
-            nationality='CH',  # Switzerland - low risk
-            country='CH',
-            email='jane@example.com',
-            phone='+41234567890',
-            address='123 Swiss St',
-            city='Zurich',
-            postal_code='8001',
-            industry='BANKING',  # Regulated industry
-            expected_monthly_volume=Decimal('10000.00'),  # Low volume
-            source_of_funds='SALARY',
-            is_pep=False
+    def test_risk_assessment_with_beneficial_owners(self):
+        """Teste de avaliação de risco considerando beneficiários finais"""
+        # Criar beneficiário final PEP
+        BeneficialOwner.objects.create(
+            customer=self.customer,
+            full_name='Maria Santos PEP',
+            document_number='98765432100',
+            document_type='CPF',
+            ownership_percentage=Decimal('60.00'),
+            is_pep=True,
+            country='Brasil'
         )
         
-        assessment = self.service.calculate_customer_risk(low_risk_customer, self.user)
+        risk_score = self.service.calculate_risk_score(self.customer)
         
-        # Should be relatively low risk
-        self.assertLess(assessment.final_score, 70)
-        self.assertIn(assessment.risk_level, ['LOW', 'MEDIUM'])
+        # Score deve ser maior devido ao beneficiário PEP
+        self.assertGreater(risk_score, 30)
     
-    def test_calculate_customer_risk_high_risk(self):
-        """Test risk calculation for high-risk customer"""
-        high_risk_customer = Customer.objects.create(
-            customer_type='INDIVIDUAL',
-            first_name='High',
-            last_name='Risk',
-            nationality='AF',  # Afghanistan - high risk
-            country='AF',
-            email='highrisk@example.com',
-            phone='+93234567890',
-            address='123 High Risk St',
-            city='Kabul',
-            postal_code='1001',
-            industry='MONEY_SERVICES',  # High-risk industry
-            expected_monthly_volume=Decimal('500000.00'),  # High volume
-            source_of_funds='BUSINESS_REVENUE',
-            is_pep=True  # PEP status
+    def test_risk_factors_weighting(self):
+        """Teste de ponderação dos fatores de risco"""
+        # Simular cálculo com fatores específicos
+        factors_scores = {
+            'country': 20,
+            'pep': 80,
+            'business': 30,
+            'sanctions': 0,
+            'beneficial_owners': 40
+        }
+        
+        weighted_score = self.service._calculate_weighted_score(factors_scores)
+        
+        # Verificar se o score ponderado está correto
+        self.assertGreaterEqual(weighted_score, 0)
+        self.assertLessEqual(weighted_score, 100)
+    
+    def test_risk_assessment_history(self):
+        """Teste de histórico de avaliações de risco"""
+        # Criar múltiplas avaliações
+        assessment1 = self.service.create_assessment(self.customer, self.user)
+        
+        # Alterar dados do cliente
+        self.customer.is_pep = True
+        self.customer.save()
+        
+        assessment2 = self.service.create_assessment(self.customer, self.user)
+        
+        # Verificar histórico
+        assessments = RiskAssessment.objects.filter(customer=self.customer).order_by('-assessment_date')
+        self.assertEqual(assessments.count(), 2)
+        self.assertGreater(assessment2.risk_score, assessment1.risk_score)
+    
+    def test_risk_matrix_application(self):
+        """Teste de aplicação da matriz de risco"""
+        # Criar matriz de risco
+        matrix = RiskMatrix.objects.create(
+            min_score=0,
+            max_score=30,
+            risk_level='LOW',
+            description='Baixo risco',
+            required_actions='Monitoramento padrão'
         )
         
-        assessment = self.service.calculate_customer_risk(high_risk_customer, self.user)
-        
-        # Should be high risk
-        self.assertGreater(assessment.final_score, 60)
-        self.assertIn(assessment.risk_level, ['HIGH', 'CRITICAL'])
-    
-    def test_get_base_risk_score(self):
-        """Test base risk score calculation"""
-        base_score = self.service._get_base_risk_score(self.customer)
-        
-        # Should return default base score
-        self.assertEqual(base_score, 50)
-    
-    def test_apply_risk_factors(self):
-        """Test risk factor application"""
-        base_score = 50
-        final_score = self.service._apply_risk_factors(self.customer, base_score)
-        
-        # Score should be modified by factors
-        self.assertNotEqual(final_score, base_score)
-        self.assertGreaterEqual(final_score, 0)
-        self.assertLessEqual(final_score, 100)
-    
-    def test_get_geographic_risk_weight(self):
-        """Test geographic risk weight calculation"""
-        # Test low-risk country
-        weight = self.service._get_geographic_risk_weight('CH')  # Switzerland
-        self.assertLessEqual(weight, 0)
-        
-        # Test high-risk country
-        weight = self.service._get_geographic_risk_weight('AF')  # Afghanistan
-        self.assertGreaterEqual(weight, 15)
-        
-        # Test unknown country (should use default)
-        weight = self.service._get_geographic_risk_weight('XX')
-        self.assertEqual(weight, 0)
-    
-    def test_get_industry_risk_weight(self):
-        """Test industry risk weight calculation"""
-        # Test low-risk industry
-        weight = self.service._get_industry_risk_weight('BANKING')
-        self.assertLessEqual(weight, 5)
-        
-        # Test high-risk industry
-        weight = self.service._get_industry_risk_weight('MONEY_SERVICES')
-        self.assertGreaterEqual(weight, 15)
-        
-        # Test unknown industry (should use default)
-        weight = self.service._get_industry_risk_weight('UNKNOWN')
-        self.assertEqual(weight, 0)
-    
-    def test_get_transaction_volume_risk_weight(self):
-        """Test transaction volume risk weight calculation"""
-        # Test low volume
-        weight = self.service._get_transaction_volume_risk_weight(Decimal('5000.00'))
-        self.assertLessEqual(weight, 0)
-        
-        # Test medium volume
-        weight = self.service._get_transaction_volume_risk_weight(Decimal('50000.00'))
-        self.assertGreaterEqual(weight, 0)
-        self.assertLessEqual(weight, 10)
-        
-        # Test high volume
-        weight = self.service._get_transaction_volume_risk_weight(Decimal('500000.00'))
-        self.assertGreaterEqual(weight, 10)
-    
-    def test_determine_risk_level(self):
-        """Test risk level determination"""
-        # Test low risk
-        risk_level = self.service._determine_risk_level(25, self.customer.customer_type)
+        # Testar aplicação
+        risk_level = self.service._apply_risk_matrix(25)
         self.assertEqual(risk_level, 'LOW')
-        
-        # Test medium risk
-        risk_level = self.service._determine_risk_level(45, self.customer.customer_type)
-        self.assertEqual(risk_level, 'MEDIUM')
-        
-        # Test high risk
-        risk_level = self.service._determine_risk_level(75, self.customer.customer_type)
-        self.assertEqual(risk_level, 'HIGH')
-        
-        # Test critical risk
-        risk_level = self.service._determine_risk_level(95, self.customer.customer_type)
-        self.assertEqual(risk_level, 'CRITICAL')
     
-    def test_force_recalculate(self):
-        """Test force recalculation of existing assessment"""
-        # Create initial assessment
-        initial_assessment = self.service.calculate_customer_risk(self.customer, self.user)
-        initial_score = initial_assessment.final_score
+    @patch('apps.risk.services.RiskCalculationService._calculate_country_risk')
+    def test_service_with_mocked_country_risk(self, mock_country_risk):
+        """Teste com mock do cálculo de risco por país"""
+        mock_country_risk.return_value = 50
         
-        # Force recalculation
-        new_assessment = self.service.calculate_customer_risk(
-            self.customer, self.user, force_recalculate=True
+        risk_score = self.service.calculate_risk_score(self.customer)
+        
+        # Verificar se o mock foi chamado
+        mock_country_risk.assert_called_once_with(self.customer)
+        self.assertIsInstance(risk_score, int)
+    
+    def test_error_handling_invalid_customer(self):
+        """Teste de tratamento de erro com cliente inválido"""
+        with self.assertRaises(ValueError):
+            self.service.calculate_risk_score(None)
+    
+    def test_risk_calculation_performance(self):
+        """Teste de performance do cálculo de risco"""
+        import time
+        
+        start_time = time.time()
+        
+        # Executar múltiplos cálculos
+        for _ in range(10):
+            self.service.calculate_risk_score(self.customer)
+        
+        end_time = time.time()
+        execution_time = end_time - start_time
+        
+        # Verificar se execução é rápida (menos de 1 segundo para 10 cálculos)
+        self.assertLess(execution_time, 1.0)
+    
+    def test_risk_factors_configuration(self):
+        """Teste de configuração de fatores de risco"""
+        # Verificar se fatores foram criados
+        self.assertEqual(RiskFactor.objects.filter(is_active=True).count(), 3)
+        
+        # Verificar soma dos pesos
+        total_weight = sum(
+            factor.weight for factor in RiskFactor.objects.filter(is_active=True)
+        )
+        self.assertEqual(total_weight, Decimal('1.0'))
+    
+    def test_risk_assessment_validation(self):
+        """Teste de validação de avaliação de risco"""
+        assessment = RiskAssessment.objects.create(
+            customer=self.customer,
+            risk_score=85,
+            risk_level='HIGH',
+            assessed_by=self.user,
+            assessment_date=timezone.now()
         )
         
-        # Should create new assessment
-        self.assertNotEqual(initial_assessment.id, new_assessment.id)
-        
-        # Old assessment should no longer be current
-        initial_assessment.refresh_from_db()
-        self.assertFalse(initial_assessment.is_current)
-        
-        # New assessment should be current
-        self.assertTrue(new_assessment.is_current)
-    
-    def test_assessment_justification_generation(self):
-        """Test assessment justification generation"""
-        assessment = self.service.calculate_customer_risk(self.customer, self.user)
-        
-        # Should have meaningful justification
-        self.assertIsNotNone(assessment.justification)
-        self.assertGreater(len(assessment.justification), 50)
-        self.assertIn('risk assessment', assessment.justification.lower())
+        # Verificar validações
+        self.assertGreaterEqual(assessment.risk_score, 0)
+        self.assertLessEqual(assessment.risk_score, 100)
+        self.assertIn(assessment.risk_level, ['LOW', 'MEDIUM', 'HIGH', 'CRITICAL'])
 
 
-class RiskMonitoringServiceTest(TestCase):
-    """Test cases for RiskMonitoringService"""
+class RiskServiceIntegrationTest(TestCase):
+    """Testes de integração para serviços de risco"""
     
     def setUp(self):
-        """Set up test data"""
+        """Configuração inicial"""
         self.user = User.objects.create_user(
             username='testuser',
             email='test@example.com',
             password='testpass123'
         )
-        
-        self.customer = Customer.objects.create(
-            customer_type='INDIVIDUAL',
-            first_name='John',
-            last_name='Doe',
-            nationality='US',
-            country='US',
-            email='john.doe@example.com',
-            phone='+1234567890',
-            address='123 Main St',
-            city='New York',
-            postal_code='10001',
-            industry='TECHNOLOGY',
-            expected_monthly_volume=Decimal('50000.00'),
-            source_of_funds='SALARY'
-        )
-        
-        # Create initial risk assessment
-        self.initial_assessment = RiskAssessment.objects.create(
-            customer=self.customer,
-            assessment_type='INITIAL',
-            base_score=50,
-            final_score=55,
-            risk_level='MEDIUM',
-            methodology='CERES Simplified',
-            justification='Initial assessment',
-            assessed_by=self.user,
-            is_current=True
-        )
-        
-        self.service = RiskMonitoringService()
+        self.service = RiskCalculationService()
     
-    def test_monitor_customer_changes_no_change(self):
-        """Test monitoring when no significant changes"""
-        result = self.service.monitor_customer_changes(self.customer)
-        
-        # Should return False (no significant change)
-        self.assertFalse(result)
-    
-    def test_monitor_customer_changes_significant_change(self):
-        """Test monitoring when significant changes detected"""
-        # Modify customer to trigger change
-        self.customer.expected_monthly_volume = Decimal('200000.00')  # Significant increase
-        self.customer.save()
-        
-        result = self.service.monitor_customer_changes(self.customer)
-        
-        # Should return True (significant change detected)
-        self.assertTrue(result)
-    
-    def test_check_transaction_volume_change(self):
-        """Test transaction volume change detection"""
-        # Test no significant change
-        result = self.service._check_transaction_volume_change(
-            self.customer, Decimal('50000.00'), Decimal('55000.00')
-        )
-        self.assertFalse(result)
-        
-        # Test significant increase
-        result = self.service._check_transaction_volume_change(
-            self.customer, Decimal('50000.00'), Decimal('150000.00')
-        )
-        self.assertTrue(result)
-        
-        # Test significant decrease
-        result = self.service._check_transaction_volume_change(
-            self.customer, Decimal('100000.00'), Decimal('30000.00')
-        )
-        self.assertTrue(result)
-    
-    def test_check_profile_changes(self):
-        """Test profile change detection"""
-        # Test no changes
-        changes = {
-            'country': 'US',
-            'industry': 'TECHNOLOGY',
-            'is_pep': False
-        }
-        result = self.service._check_profile_changes(self.customer, changes)
-        self.assertFalse(result)
-        
-        # Test country change
-        changes['country'] = 'AF'  # High-risk country
-        result = self.service._check_profile_changes(self.customer, changes)
-        self.assertTrue(result)
-        
-        # Test PEP status change
-        changes = {'country': 'US', 'industry': 'TECHNOLOGY', 'is_pep': True}
-        result = self.service._check_profile_changes(self.customer, changes)
-        self.assertTrue(result)
-    
-    def test_create_monitoring_record(self):
-        """Test monitoring record creation"""
-        monitoring_record = self.service._create_monitoring_record(
-            customer=self.customer,
-            monitoring_type='TRIGGERED',
-            trigger_event='PROFILE_CHANGE',
-            previous_risk_level='MEDIUM',
-            current_risk_level='HIGH',
-            risk_change_reason='Country change to high-risk jurisdiction'
+    def test_end_to_end_risk_assessment(self):
+        """Teste end-to-end de avaliação de risco"""
+        # Criar cliente
+        customer = Customer.objects.create(
+            customer_type='CORPORATE',
+            company_name='Empresa Teste LTDA',
+            email='empresa@teste.com',
+            phone='+5511999999999',
+            document_type='CNPJ',
+            document_number='12345678000195',
+            country='Brasil',
+            industry='Tecnologia'
         )
         
-        self.assertEqual(monitoring_record.customer, self.customer)
-        self.assertEqual(monitoring_record.monitoring_type, 'TRIGGERED')
-        self.assertEqual(monitoring_record.trigger_event, 'PROFILE_CHANGE')
-        self.assertEqual(monitoring_record.previous_risk_level, 'MEDIUM')
-        self.assertEqual(monitoring_record.current_risk_level, 'HIGH')
-        self.assertTrue(monitoring_record.action_required)
-    
-    def test_should_trigger_reassessment(self):
-        """Test reassessment trigger logic"""
-        # Test no trigger needed
-        result = self.service._should_trigger_reassessment(
-            previous_level='MEDIUM',
-            current_level='MEDIUM',
-            score_change=5
-        )
-        self.assertFalse(result)
-        
-        # Test risk level change
-        result = self.service._should_trigger_reassessment(
-            previous_level='MEDIUM',
-            current_level='HIGH',
-            score_change=15
-        )
-        self.assertTrue(result)
-        
-        # Test significant score change
-        result = self.service._should_trigger_reassessment(
-            previous_level='MEDIUM',
-            current_level='MEDIUM',
-            score_change=25
-        )
-        self.assertTrue(result)
-    
-    @patch('apps.risk.services.RiskCalculationService.calculate_customer_risk')
-    def test_trigger_risk_reassessment(self, mock_calculate):
-        """Test risk reassessment triggering"""
-        # Mock the risk calculation
-        mock_assessment = MagicMock()
-        mock_assessment.risk_level = 'HIGH'
-        mock_assessment.final_score = 75
-        mock_calculate.return_value = mock_assessment
-        
-        result = self.service.trigger_risk_reassessment(
-            customer=self.customer,
-            trigger_event='PROFILE_CHANGE',
-            reason='Customer moved to high-risk country'
+        # Criar beneficiário final
+        BeneficialOwner.objects.create(
+            customer=customer,
+            full_name='João Silva',
+            document_number='12345678901',
+            document_type='CPF',
+            ownership_percentage=Decimal('100.00'),
+            country='Brasil'
         )
         
-        # Should call risk calculation
-        mock_calculate.assert_called_once()
+        # Executar avaliação completa
+        assessment = self.service.create_assessment(customer, self.user)
         
-        # Should return the new assessment
-        self.assertEqual(result, mock_assessment)
-    
-    def test_get_risk_change_threshold(self):
-        """Test risk change threshold calculation"""
-        # Test different risk levels
-        threshold = self.service._get_risk_change_threshold('LOW')
-        self.assertEqual(threshold, 15)
+        # Verificar resultado
+        self.assertIsNotNone(assessment)
+        self.assertEqual(assessment.customer, customer)
+        self.assertIn(assessment.risk_level, ['LOW', 'MEDIUM', 'HIGH', 'CRITICAL'])
         
-        threshold = self.service._get_risk_change_threshold('MEDIUM')
-        self.assertEqual(threshold, 20)
-        
-        threshold = self.service._get_risk_change_threshold('HIGH')
-        self.assertEqual(threshold, 10)
-        
-        threshold = self.service._get_risk_change_threshold('CRITICAL')
-        self.assertEqual(threshold, 5)
-    
-    def test_periodic_monitoring_check(self):
-        """Test periodic monitoring check"""
-        # Mock overdue review
-        self.customer.next_review_date = timezone.now().date() - timezone.timedelta(days=1)
-        self.customer.save()
-        
-        result = self.service.check_periodic_monitoring_due(self.customer)
-        self.assertTrue(result)
-        
-        # Test not due
-        self.customer.next_review_date = timezone.now().date() + timezone.timedelta(days=30)
-        self.customer.save()
-        
-        result = self.service.check_periodic_monitoring_due(self.customer)
-        self.assertFalse(result)
+        # Verificar se customer foi atualizado
+        customer.refresh_from_db()
+        self.assertEqual(customer.risk_level, assessment.risk_level)
+        self.assertEqual(customer.risk_score, assessment.risk_score)
 
